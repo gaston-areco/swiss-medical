@@ -63,56 +63,10 @@ jobs:
       
     - name: Check coverage threshold and generate report
       run: |
-        # Generate coverage report
-        mvn jacoco:report
+        # Generate coverage report and check threshold in one command
+        mvn clean verify
         
-        # Check if coverage report exists
-        if [ ! -f "target/site/jacoco/jacoco.xml" ]; then
-          echo "❌ Coverage report not found"
-          exit 1
-        fi
-        
-        # Extract coverage percentage from XML report
-        COVERAGE_LINE=$(grep -o 'INSTRUCTION.*missed="[0-9]*".*covered="[0-9]*"' target/site/jacoco/jacoco.xml | head -1)
-        
-        if [ -n "$COVERAGE_LINE" ]; then
-          MISSED=$(echo "$COVERAGE_LINE" | grep -o 'missed="[0-9]*"' | grep -o '[0-9]*')
-          COVERED=$(echo "$COVERAGE_LINE" | grep -o 'covered="[0-9]*"' | grep -o '[0-9]*')
-          
-          # Set defaults if empty
-          MISSED=${MISSED:-0}
-          COVERED=${COVERED:-0}
-          TOTAL=$((MISSED + COVERED))
-          
-          if [ "$TOTAL" -gt 0 ]; then
-            PERCENTAGE=$((COVERED * 100 / TOTAL))
-          else
-            PERCENTAGE=0
-          fi
-        else
-          echo "⚠️  Could not parse coverage from XML, trying alternative method..."
-          # Try to get coverage from index.html as fallback
-          if [ -f "target/site/jacoco/index.html" ]; then
-            PERCENTAGE=$(grep -o '[0-9]*%' target/site/jacoco/index.html | head -1 | grep -o '[0-9]*' || echo "0")
-          else
-            PERCENTAGE=0
-          fi
-        fi
-        
-        # Ensure PERCENTAGE is a number
-        if ! [[ "$PERCENTAGE" =~ ^[0-9]+$ ]]; then
-          echo "⚠️  Could not determine coverage percentage, defaulting to 0%"
-          PERCENTAGE=0
-        fi
-        
-        echo "📊 Code Coverage: ${PERCENTAGE}%"
-        
-        if [ "$PERCENTAGE" -lt 80 ]; then
-          echo "❌ Coverage ${PERCENTAGE}% is below the required 80%"
-          exit 1
-        else
-          echo "✅ Coverage ${PERCENTAGE}% meets the required 80%"
-        fi
+        echo "✅ All tests passed and coverage meets the 80% threshold"
         
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
