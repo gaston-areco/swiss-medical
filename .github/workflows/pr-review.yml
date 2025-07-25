@@ -2,7 +2,7 @@ name: PR Review Workflow
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    branches: [ main, develop, develop-* ]
 
 jobs:
   test:
