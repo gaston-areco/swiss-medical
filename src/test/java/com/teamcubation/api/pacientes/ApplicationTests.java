@@ -7,7 +7,6 @@ import org.springframework.test.context.ActiveProfiles;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
-@ActiveProfiles("test")
 class ApplicationTests {
   @Test
   public void dummyTest() {
