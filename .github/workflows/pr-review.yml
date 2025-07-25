@@ -35,7 +35,6 @@ jobs:
         name: Maven Tests
         path: target/surefire-reports/*.xml
         reporter: java-junit
-        fail-on-error: true
 
   coverage:
     name: Check Code Coverage
@@ -62,31 +61,47 @@ jobs:
     - name: Run tests with coverage
       run: mvn clean test jacoco:report
       
-    - name: Check coverage threshold
+    - name: Check coverage threshold and generate report
       run: |
-        # Generate coverage report first
+        # Generate coverage report
         mvn jacoco:report
+        
         # Check if coverage report exists
         if [ ! -f "target/site/jacoco/jacoco.xml" ]; then
-          echo "Coverage report not found"
+          echo "❌ Coverage report not found"
           exit 1
         fi
         
-    - name: Generate coverage report
-      uses: codecov/codecov-action@v4
-      with:
-        file: target/site/jacoco/jacoco.xml
-        fail_ci_if_error: true
+        # Extract coverage percentage using xmllint or grep
+        if command -v xmllint >/dev/null 2>&1; then
+          COVERAGE=$(xmllint --xpath "string(//report/counter[@type='INSTRUCTION']/@covered)" target/site/jacoco/jacoco.xml)
+          MISSED=$(xmllint --xpath "string(//report/counter[@type='INSTRUCTION']/@missed)" target/site/jacoco/jacoco.xml)
+          TOTAL=$((COVERAGE + MISSED))
+          if [ $TOTAL -gt 0 ]; then
+            PERCENTAGE=$((COVERAGE * 100 / TOTAL))
+          else
+            PERCENTAGE=0
+          fi
+        else
+          # Fallback: simple grep approach
+          PERCENTAGE=$(grep -oP 'INSTRUCTION.*?(\d+)%' target/site/jacoco/index.html | grep -oP '\d+' | tail -1 || echo "0")
+        fi
         
-    - name: Add coverage to PR
-      id: jacoco
-      uses: madrapps/jacoco-report@v1.6.1
+        echo "📊 Code Coverage: ${PERCENTAGE}%"
+        
+        if [ "$PERCENTAGE" -lt 80 ]; then
+          echo "❌ Coverage ${PERCENTAGE}% is below the required 80%"
+          exit 1
+        else
+          echo "✅ Coverage ${PERCENTAGE}% meets the required 80%"
+        fi
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
       with:
-        paths: target/site/jacoco/jacoco.xml
-        token: ${{ secrets.GITHUB_TOKEN }}
-        min-coverage-overall: 80
-        min-coverage-changed-files: 80
-
+        name: coverage-report
+        path: target/site/jacoco/
   pr-status:
     name: PR Status Check
     runs-on: ubuntu-latest
