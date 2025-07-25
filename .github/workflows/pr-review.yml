@@ -72,19 +72,37 @@ jobs:
           exit 1
         fi
         
-        # Extract coverage percentage using xmllint or grep
-        if command -v xmllint >/dev/null 2>&1; then
-          COVERAGE=$(xmllint --xpath "string(//report/counter[@type='INSTRUCTION']/@covered)" target/site/jacoco/jacoco.xml)
-          MISSED=$(xmllint --xpath "string(//report/counter[@type='INSTRUCTION']/@missed)" target/site/jacoco/jacoco.xml)
-          TOTAL=$((COVERAGE + MISSED))
-          if [ $TOTAL -gt 0 ]; then
-            PERCENTAGE=$((COVERAGE * 100 / TOTAL))
+        # Extract coverage percentage from XML report
+        COVERAGE_LINE=$(grep -o 'INSTRUCTION.*missed="[0-9]*".*covered="[0-9]*"' target/site/jacoco/jacoco.xml | head -1)
+        
+        if [ -n "$COVERAGE_LINE" ]; then
+          MISSED=$(echo "$COVERAGE_LINE" | grep -o 'missed="[0-9]*"' | grep -o '[0-9]*')
+          COVERED=$(echo "$COVERAGE_LINE" | grep -o 'covered="[0-9]*"' | grep -o '[0-9]*')
+          
+          # Set defaults if empty
+          MISSED=${MISSED:-0}
+          COVERED=${COVERED:-0}
+          TOTAL=$((MISSED + COVERED))
+          
+          if [ "$TOTAL" -gt 0 ]; then
+            PERCENTAGE=$((COVERED * 100 / TOTAL))
           else
             PERCENTAGE=0
           fi
         else
-          # Fallback: simple grep approach
-          PERCENTAGE=$(grep -oP 'INSTRUCTION.*?(\d+)%' target/site/jacoco/index.html | grep -oP '\d+' | tail -1 || echo "0")
+          echo "⚠️  Could not parse coverage from XML, trying alternative method..."
+          # Try to get coverage from index.html as fallback
+          if [ -f "target/site/jacoco/index.html" ]; then
+            PERCENTAGE=$(grep -o '[0-9]*%' target/site/jacoco/index.html | head -1 | grep -o '[0-9]*' || echo "0")
+          else
+            PERCENTAGE=0
+          fi
+        fi
+        
+        # Ensure PERCENTAGE is a number
+        if ! [[ "$PERCENTAGE" =~ ^[0-9]+$ ]]; then
+          echo "⚠️  Could not determine coverage percentage, defaulting to 0%"
+          PERCENTAGE=0
         fi
         
         echo "📊 Code Coverage: ${PERCENTAGE}%"
@@ -102,6 +120,7 @@ jobs:
       with:
         name: coverage-report
         path: target/site/jacoco/
+        
   pr-status:
     name: PR Status Check
     runs-on: ubuntu-latest
